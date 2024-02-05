@@ -12,6 +12,8 @@ dget -h
 ```
 To search,
 ```
+cd your/path/here/
 dget -f <your_keyword>
 ```
+...or you can define your own path with `-s` flag.  
 That's it, really.
