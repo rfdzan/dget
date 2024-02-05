@@ -17,13 +17,8 @@ impl Args {
             Err(e) => {
                 eprintln!("{e}");
                 String::with_capacity(0)
-            },
-            Ok(val) => {
-                val
-                .to_str()
-                .unwrap_or_default()
-                .to_string()
-            },
+            }
+            Ok(val) => val.to_str().unwrap_or_default().to_string(),
         };
         pwd
     }
@@ -34,5 +29,3 @@ impl Args {
         self.find.clone()
     }
 }
-
-
