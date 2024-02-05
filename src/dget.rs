@@ -2,14 +2,14 @@ use std::collections::{HashMap, VecDeque};
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-pub fn bfs_main() {
-    let start = PathBuf::from("/home/user/Documents");
-    match bfs(start) {
+pub fn dget_main(starting_path: &str, to_search: &str) {
+    let start = PathBuf::from(starting_path);
+    match dget(start) {
         Err(e) => println!("{e}"),
         Ok(_) => (),
     }
 }
-fn bfs(start: PathBuf) -> io::Result<()> {
+fn dget(start: PathBuf) -> io::Result<()> {
     let mut visited_vertices = HashMap::with_capacity(1000);
     let mut deque = VecDeque::with_capacity(1000);
     visited_vertices.insert(start.clone(), false);
