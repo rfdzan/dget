@@ -46,11 +46,20 @@ fn check_for_ignores(start: &PathBuf) -> IgnoreExists {
     let read = std::fs::read_dir(start).unwrap();
     let mut ignore_exist = IgnoreExists::No(PathBuf::new());
     for f in read {
-        let path = f.unwrap().path();
-        let path_name = path.file_stem().unwrap_or_default().to_str().unwrap_or_default();
-        if ignore_files.contains(&path_name) {
-            ignore_exist = IgnoreExists::Yes(PathBuf::from(path));
-            break
+        match f {
+            Err(e) => eprintln!("{e}"),
+            Ok(path) => {
+                let owned_path = path.path();
+                let path = owned_path
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default();
+                if ignore_files.contains(&path) {
+                    ignore_exist = IgnoreExists::Yes(PathBuf::from(path));
+                    break
+                }
+            }
         }
     }
     ignore_exist
