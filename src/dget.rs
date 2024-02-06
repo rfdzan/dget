@@ -14,11 +14,27 @@ fn close_enough(path: &PathBuf, to_search: &str) -> bool {
     match path.file_stem().unwrap_or_default().to_str() {
         None => false,
         Some(path_name) => {
-            if levenshtein(to_search, path_name) < 2 {
-                true
-            } else {
-                false
-            }
+            let edit_distance = match i32::try_from(levenshtein(path_name, to_search)) {
+                Err(_) => return false,
+                Ok(val) => val,
+            };
+            let arr =  [path_name.chars().count(), to_search.chars().count()];
+            match arr.iter().max() {
+                None => false,
+                Some(max) => {
+                    let max_as_i32 = match i32::try_from(*max) {
+                        Err(_) => return false,
+                        Ok(val) => val,
+                    };
+                    let edit_distance_as_f64 = f64::from(edit_distance);
+                    let max_as_f64 = f64::from(max_as_i32);
+                    let ratio = (max_as_f64 - edit_distance_as_f64) / max_as_f64;
+                    if ratio > 0.5 {
+                        return true
+                    }
+                    false
+                }
+            } 
         }
     }
 }
