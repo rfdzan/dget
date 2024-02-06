@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.4.18", features = ["derive"] }
+ignore = "0.4.22"
 levenshtein = "1.0.5"

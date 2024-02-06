@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 pub mod dget;
 
@@ -28,4 +30,9 @@ impl Args {
     pub fn get_keywords(&self) -> String {
         self.find.clone()
     }
+}
+#[derive(Debug)]
+pub enum IgnoreExists {
+    Yes(PathBuf),
+    No(PathBuf),
 }

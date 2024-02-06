@@ -1,7 +1,10 @@
+use ignore::Match;
 use levenshtein::levenshtein;
+use crate::IgnoreExists;
 use std::collections::{HashMap, VecDeque};
 use std::io::{self, Write};
 use std::path::PathBuf;
+use ignore::gitignore::Gitignore;
 
 pub fn dget_main(starting_path: &str, to_search: &str, stdout: &mut dyn io::Write) {
     let start = PathBuf::from(starting_path);
@@ -38,7 +41,25 @@ fn close_enough(path: &PathBuf, to_search: &str) -> bool {
         }
     }
 }
+fn check_for_ignores(start: &PathBuf) -> IgnoreExists {
+    let ignore_files = [".gitignore", ".ignore"];
+    let read = std::fs::read_dir(start).unwrap();
+    let mut ignore_exist = IgnoreExists::No(PathBuf::new());
+    for f in read {
+        let path = f.unwrap().path();
+        let path_name = path.file_stem().unwrap_or_default().to_str().unwrap_or_default();
+        if ignore_files.contains(&path_name) {
+            ignore_exist = IgnoreExists::Yes(PathBuf::from(path));
+            break
+        }
+    }
+    ignore_exist
+}
 fn dget(start: PathBuf, to_search: &str, stdout: &mut dyn io::Write) -> io::Result<()> {
+    let (gitignore, _) = match check_for_ignores(&start) {
+        IgnoreExists::No(empty_path) => Gitignore::new(empty_path),
+        IgnoreExists::Yes(ignore_path) => Gitignore::new(ignore_path),
+    };
     let mut visited_vertices = HashMap::with_capacity(1000);
     let mut deque = VecDeque::with_capacity(1000);
     visited_vertices.insert(start.clone(), false);
@@ -48,6 +69,11 @@ fn dget(start: PathBuf, to_search: &str, stdout: &mut dyn io::Write) -> io::Resu
     while !deque.is_empty() {
         let current_node = deque.pop_front();
         if let Some(path) = current_node {
+            match gitignore.matched(path.clone(), path.is_dir()) {
+                Match::None => (),
+                Match::Ignore(_) => continue,
+                Match::Whitelist(_) => continue,
+            } 
             if let Some(true) = visited_vertices.get(&path) {
                 continue;
             }
