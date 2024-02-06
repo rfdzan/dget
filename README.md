@@ -22,3 +22,10 @@ That's it, really.
 cargo build --release
 ```
 I'm still figuring out the building toolchain(?) so that it can just exist in your PATH automatically. Bear with me.
+# How to test
+```
+cargo test
+```
+Current test suite is not comprehensive enough.  
+
+If you have suggestions for more robust testing please open an issue.
