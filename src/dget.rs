@@ -3,9 +3,9 @@ use std::collections::{HashMap, VecDeque};
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-pub fn dget_main(starting_path: &str, to_search: &str) {
+pub fn dget_main(starting_path: &str, to_search: &str, stdout: &mut dyn io::Write) {
     let start = PathBuf::from(starting_path);
-    match dget(start, to_search) {
+    match dget(start, to_search, stdout) {
         Err(e) => println!("{e}"),
         Ok(_) => (),
     }
@@ -38,13 +38,13 @@ fn close_enough(path: &PathBuf, to_search: &str) -> bool {
         }
     }
 }
-fn dget(start: PathBuf, to_search: &str) -> io::Result<()> {
+fn dget(start: PathBuf, to_search: &str, stdout: &mut dyn io::Write) -> io::Result<()> {
     let mut visited_vertices = HashMap::with_capacity(1000);
     let mut deque = VecDeque::with_capacity(1000);
     visited_vertices.insert(start.clone(), false);
     deque.push_back(start);
 
-    let mut stdout = io::stdout().lock();
+    // let mut stdout = io::stdout().lock();
     while !deque.is_empty() {
         let current_node = deque.pop_front();
         if let Some(path) = current_node {
@@ -89,4 +89,56 @@ fn dget(start: PathBuf, to_search: &str) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{env::current_dir, str};
+    #[test]
+    fn test_passing_levenshtein() {
+        let path = PathBuf::from("/home/user/foo/bar/baz.txt");
+        let to_search = "baz";
+        let ratio = close_enough(&path, to_search);
+        assert!(ratio)
+    }
+    #[test]
+    fn test_failing_levenshtein() {
+        let path = PathBuf::from("/home/user/foo/bar/baz.txt");
+        let to_search = "foo";
+        let ratio = close_enough(&path, to_search);
+        assert!(!ratio)
+    }
+    fn test_dget_utf8(to_search: &str, test_dir: PathBuf, test_path: &PathBuf) {
+        let mut fake_stdout: Vec<u8> = Vec::with_capacity(10);
+        let run = { 
+            match dget(test_dir, to_search, &mut fake_stdout) {
+                Err(_) => false,
+                Ok(_) => true,
+            }
+        };
+        let apple = match str::from_utf8(fake_stdout.as_ref()) {
+            Err(e) => {
+                println!("{e}");
+                return
+                },
+            Ok(val) => val,
+        };
+        assert_eq!(PathBuf::from(apple.trim()), *test_path);
+        assert!(run)
+    }
+    #[test]
+    fn test_dget_utf8_cases_single() {
+        let start = {
+            match current_dir() {
+                Err(_) => panic!("Test Failed! Cannot determine current directory\n"),
+                Ok(val) => val
+            }
+        };
+        let test_dir = start.join("test_dir");
+        test_dget_utf8("apple", test_dir.clone(), &test_dir.join("bar").join("apple.config"));
+        test_dget_utf8("ham", test_dir.clone(), &test_dir.join("ham.txt"));
+        test_dget_utf8("foo", test_dir.clone(), &test_dir.join("foo"));
+        test_dget_utf8("sandwich", test_dir.clone(), &test_dir.join("bar").join("sandwich.txt"));
+    }
 }
