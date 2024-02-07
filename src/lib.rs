@@ -73,27 +73,23 @@ impl<'a> IgnoreFiles<'a> {
         if gitignore_path.is_file() {
             return IgnoreExists::Yes(gitignore_path.to_path_buf());
         }
-        let read_dir = std::fs::read_dir(gitignore_path);
-
-        match read_dir {
-            Err(e) => eprintln!("{e}"),
-            Ok(read) => {
-                for f in read {
-                    match f {
-                        Err(e) => eprintln!("{e}"),
-                        Ok(path) => {
-                            let owned_path = path.path();
-                            let path = owned_path
-                                .file_stem()
-                                .unwrap_or_default()
-                                .to_str()
-                                .unwrap_or_default();
-                            if ignore_files.contains(&path) {
-                                ignore_exist = IgnoreExists::Yes(PathBuf::from(path));
-                                break;
-                            }
-                        }
+        if let Ok(read) = std::fs::read_dir(gitignore_path).map_err(|e| eprintln!("{e}")) {
+            for f in read {
+                let owned_path = match f {
+                    Err(e) => {
+                        eprintln!("{e}");
+                        continue;
                     }
+                    Ok(path) => path.path(),
+                };
+                let path = owned_path
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default();
+                if ignore_files.contains(&path) {
+                    ignore_exist = IgnoreExists::Yes(PathBuf::from(path));
+                    break;
                 }
             }
         }
