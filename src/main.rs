@@ -7,6 +7,6 @@ fn main() {
         args.get_starting_dir(),
         args.get_keywords().as_str(),
         args.get_gitignore(),
-        &mut io::stdout().lock()
+        &mut io::stdout().lock(),
     );
 }
