@@ -70,7 +70,10 @@ fn dget(
                 let disp = path.display();
                 writeln!(stdout, "{disp}")?;
             }
-            if path.is_file() || path.is_symlink() {
+            if path.is_file() {
+                continue;
+            }
+            if path.is_symlink() {
                 visited_vertices.insert(path.clone(), true);
                 deque.push_back(path);
                 continue;
@@ -78,14 +81,12 @@ fn dget(
             visited_vertices.insert(path.clone(), true);
             match std::fs::read_dir(&path) {
                 Err(_) => {
-                    deque.push_back(path);
                     continue;
                 }
                 Ok(nodes) => {
                     for node in nodes {
                         match node {
                             Err(_) => {
-                                deque.push_back(path.clone());
                                 continue;
                             }
                             Ok(direntry) => {
