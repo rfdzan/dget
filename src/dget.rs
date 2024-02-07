@@ -121,7 +121,7 @@ mod tests {
         let ratio = close_enough(&path, to_search);
         assert!(!ratio)
     }
-    fn test_dget_utf8(to_search: &str, test_dir: PathBuf, test_path: &PathBuf) {
+    fn test_dget_utf8(to_search: &str, test_dir: PathBuf, expected: &PathBuf) {
         let mut fake_stdout: Vec<u8> = Vec::with_capacity(10);
         let run = { 
             match dget(test_dir.clone(), to_search, test_dir.clone() ,&mut fake_stdout) {
@@ -129,15 +129,15 @@ mod tests {
                 Ok(_) => true,
             }
         };
-        let apple = match str::from_utf8(fake_stdout.as_ref()) {
+        let stdout_print = match str::from_utf8(fake_stdout.as_ref()) {
             Err(e) => {
-                println!("{e}");
+                eprintln!("{e}");
                 return
                 },
             Ok(val) => val,
         };
-        assert_eq!(PathBuf::from(apple.trim()), *test_path);
-        assert!(run)
+        assert!(run);
+        assert_eq!(PathBuf::from(stdout_print.trim()), *expected);
     }
     #[test]
     fn test_dget_utf8_cases_single() {
@@ -152,5 +152,36 @@ mod tests {
         test_dget_utf8("ham", test_dir.clone(), &test_dir.join("ham.txt"));
         test_dget_utf8("foo", test_dir.clone(), &test_dir.join("foo"));
         test_dget_utf8("sandwich", test_dir.clone(), &test_dir.join("bar").join("sandwich.txt"));
+    }
+
+    fn test_gitignore(test_dir: PathBuf, to_search: &str, gitignore_path: &str, expected: PathBuf) {
+        let mut fake_stdout: Vec<u8> = Vec::new();
+        let run = { 
+            match dget(test_dir.clone(), to_search, test_dir.join(gitignore_path) ,&mut fake_stdout) {
+                Err(_) => false,
+                Ok(_) => true,
+            }
+        };
+        let stdout_print = match str::from_utf8(fake_stdout.as_ref()) {
+            Err(e) => {
+                println!("{e}");
+                return
+                },
+            Ok(val) => val,
+        };
+        assert!(run);
+        assert_eq!(PathBuf::from(stdout_print.trim()), expected)
+    }
+    #[test]
+    fn test_gitignore_cases() {
+        let start = {
+            match current_dir() {
+                Err(_) => panic!("Test Failed! Cannot determine current directory\n"),
+                Ok(val) => val
+            }
+        };
+        let test_dir = start.join("test_dir");
+        test_gitignore(test_dir.clone(), "turkey", "./custom.ignore", PathBuf::new());
+        test_gitignore(test_dir.clone(), "turkey", "", test_dir.join("chicken").join("turkey.file"));
     }
 }
