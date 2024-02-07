@@ -8,14 +8,10 @@ use std::path::{Path, PathBuf};
 pub fn dget_main(
     start: PathBuf,
     to_search: &str,
-    gitignore: Option<PathBuf>,
+    gitignore: Option<&Path>,
     stdout: &mut dyn io::Write,
 ) {
-    let gitignore_path = match gitignore {
-        None => start.clone(),
-        Some(val) => val,
-    };
-    if let Err(e) = dget(start, to_search, gitignore_path, stdout) {
+    if let Err(e) = dget(start, to_search, gitignore, stdout) {
         eprintln!("{e}")
     }
 }
@@ -50,10 +46,10 @@ fn close_enough(path: &Path, to_search: &str) -> bool {
 fn dget(
     start: PathBuf,
     to_search: &str,
-    gitignore: PathBuf,
+    gitignore: Option<&Path>,
     stdout: &mut dyn io::Write,
 ) -> io::Result<()> {
-    let gitignore = IgnoreFiles::new(&gitignore).build();
+    let gitignore = IgnoreFiles::new(start.as_path(), gitignore).build();
     let mut visited_vertices = HashMap::with_capacity(1000);
     let mut deque = VecDeque::with_capacity(1000);
     visited_vertices.insert(start.clone(), false);
@@ -132,7 +128,7 @@ mod tests {
             match dget(
                 test_dir.clone(),
                 to_search,
-                test_dir.clone(),
+                Some(test_dir.as_path()),
                 &mut fake_stdout,
             ) {
                 Err(_) => false,
@@ -178,7 +174,7 @@ mod tests {
             match dget(
                 test_dir.clone(),
                 to_search,
-                test_dir.join(gitignore_path),
+                Some(test_dir.join(gitignore_path).as_path()),
                 &mut fake_stdout,
             ) {
                 Err(_) => false,

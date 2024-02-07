@@ -1,6 +1,6 @@
 use clap::Parser;
 use ignore::gitignore::Gitignore;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 pub mod dget;
 
 #[derive(Parser, Debug)]
@@ -33,24 +33,28 @@ impl Args {
     pub fn get_keywords(&self) -> String {
         self.find.clone()
     }
-    pub fn get_gitignore(&self) -> Option<PathBuf> {
+    pub fn get_gitignore(&self) -> Option<&Path> {
         if !self.gitignore.is_empty() {
             if !PathBuf::from(self.gitignore.as_str()).exists() {
                 eprintln!("ignore file {} does not exist", self.gitignore);
                 std::process::exit(0);
             }
-            Some(PathBuf::from(self.gitignore.as_str()))
+            Some(Path::new(self.gitignore.as_str()))
         } else {
             None
         }
     }
 }
 pub struct IgnoreFiles<'a> {
-    path: &'a PathBuf,
+    current_dir: &'a Path,
+    gitignore_path: Option<&'a Path>,
 }
 impl<'a> IgnoreFiles<'a> {
-    pub fn new(s: &PathBuf) -> IgnoreFiles {
-        IgnoreFiles { path: s }
+    pub fn new(s: &'a Path, g: Option<&'a Path>) -> IgnoreFiles<'a> {
+        IgnoreFiles {
+            current_dir: s,
+            gitignore_path: g,
+        }
     }
     pub fn build(&self) -> Gitignore {
         let (gitignore, _) = match self.check_for_existing_ignores() {
@@ -62,10 +66,14 @@ impl<'a> IgnoreFiles<'a> {
     fn check_for_existing_ignores(&self) -> IgnoreExists {
         let ignore_files = [".gitignore", ".ignore"];
         let mut ignore_exist = IgnoreExists::No(PathBuf::new());
-        if self.path.is_file() {
-            return IgnoreExists::Yes(PathBuf::from(self.path));
+        let gitignore_path = match self.gitignore_path {
+            None => self.current_dir,
+            Some(path) => path,
+        };
+        if gitignore_path.is_file() {
+            return IgnoreExists::Yes(gitignore_path.to_path_buf());
         }
-        let read_dir = std::fs::read_dir(self.path);
+        let read_dir = std::fs::read_dir(gitignore_path);
 
         match read_dir {
             Err(e) => eprintln!("{e}"),
