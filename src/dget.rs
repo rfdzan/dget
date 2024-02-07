@@ -90,11 +90,10 @@ fn dget(
                                 continue;
                             }
                             Ok(direntry) => {
-                                let node_pathbuf = direntry.path();
-                                if let Some(true) = visited_vertices.get(&node_pathbuf) {
+                                if let Some(true) = visited_vertices.get(&direntry.path()) {
                                     continue;
                                 }
-                                deque.push_back(node_pathbuf);
+                                deque.push_back(direntry.path());
                             }
                         }
                     }
