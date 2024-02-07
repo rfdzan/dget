@@ -1,14 +1,17 @@
 use ignore::Match;
 use levenshtein::levenshtein;
-use crate::IgnoreExists;
+use crate::IgnoreFiles;
 use std::collections::{HashMap, VecDeque};
 use std::io::{self, Write};
 use std::path::PathBuf;
-use ignore::gitignore::Gitignore;
 
-pub fn dget_main(starting_path: &str, to_search: &str, stdout: &mut dyn io::Write) {
-    let start = PathBuf::from(starting_path);
-    match dget(start, to_search, stdout) {
+pub fn dget_main(start: PathBuf, to_search: &str, gitignore: Option<PathBuf>, stdout: &mut dyn io::Write) {
+    let gitignore_path = match gitignore {
+        None => start.clone(),
+        Some(val) => val,
+    };
+    dbg!(&gitignore_path);
+    match dget(start, to_search, gitignore_path, stdout) {
         Err(e) => println!("{e}"),
         Ok(_) => (),
     }
@@ -41,34 +44,8 @@ fn close_enough(path: &PathBuf, to_search: &str) -> bool {
         }
     }
 }
-fn check_for_ignores(start: &PathBuf) -> IgnoreExists {
-    let ignore_files = [".gitignore", ".ignore"];
-    let read = std::fs::read_dir(start).unwrap();
-    let mut ignore_exist = IgnoreExists::No(PathBuf::new());
-    for f in read {
-        match f {
-            Err(e) => eprintln!("{e}"),
-            Ok(path) => {
-                let owned_path = path.path();
-                let path = owned_path
-                    .file_stem()
-                    .unwrap_or_default()
-                    .to_str()
-                    .unwrap_or_default();
-                if ignore_files.contains(&path) {
-                    ignore_exist = IgnoreExists::Yes(PathBuf::from(path));
-                    break
-                }
-            }
-        }
-    }
-    ignore_exist
-}
-fn dget(start: PathBuf, to_search: &str, stdout: &mut dyn io::Write) -> io::Result<()> {
-    let (gitignore, _) = match check_for_ignores(&start) {
-        IgnoreExists::No(empty_path) => Gitignore::new(empty_path),
-        IgnoreExists::Yes(ignore_path) => Gitignore::new(ignore_path),
-    };
+fn dget(start: PathBuf, to_search: &str, gitignore: PathBuf, stdout: &mut dyn io::Write) -> io::Result<()> {
+    let gitignore = IgnoreFiles::new(&gitignore).build();
     let mut visited_vertices = HashMap::with_capacity(1000);
     let mut deque = VecDeque::with_capacity(1000);
     visited_vertices.insert(start.clone(), false);
@@ -147,7 +124,7 @@ mod tests {
     fn test_dget_utf8(to_search: &str, test_dir: PathBuf, test_path: &PathBuf) {
         let mut fake_stdout: Vec<u8> = Vec::with_capacity(10);
         let run = { 
-            match dget(test_dir, to_search, &mut fake_stdout) {
+            match dget(test_dir.clone(), to_search, test_dir.clone() ,&mut fake_stdout) {
                 Err(_) => false,
                 Ok(_) => true,
             }
