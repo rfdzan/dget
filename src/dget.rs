@@ -15,9 +15,8 @@ pub fn dget_main(
         None => start.clone(),
         Some(val) => val,
     };
-    dbg!(&gitignore_path);
     if let Err(e) = dget(start, to_search, gitignore_path, stdout) {
-        println!("{e}")
+        eprintln!("{e}")
     }
 }
 fn close_enough(path: &Path, to_search: &str) -> bool {
@@ -60,7 +59,6 @@ fn dget(
     visited_vertices.insert(start.clone(), false);
     deque.push_back(start);
 
-    // let mut stdout = io::stdout().lock();
     while !deque.is_empty() {
         let current_node = deque.pop_front();
         if let Some(path) = current_node {
@@ -84,7 +82,6 @@ fn dget(
             visited_vertices.insert(path.clone(), true);
             match std::fs::read_dir(&path) {
                 Err(_) => {
-                    // writeln!(stdout, "{e} {path:?}")?;
                     deque.push_back(path);
                     continue;
                 }
@@ -92,7 +89,6 @@ fn dget(
                     for node in nodes {
                         match node {
                             Err(_) => {
-                                // writeln!(stdout, "{e}, {path:?}")?;
                                 deque.push_back(path.clone());
                                 continue;
                             }
