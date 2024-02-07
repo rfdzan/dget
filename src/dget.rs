@@ -1,16 +1,25 @@
+use crate::IgnoreFiles;
+use ignore::Match;
 use levenshtein::levenshtein;
 use std::collections::{HashMap, VecDeque};
-use std::io::{self, Write};
-use std::path::PathBuf;
+use std::io;
+use std::path::{Path, PathBuf};
 
-pub fn dget_main(starting_path: &str, to_search: &str, stdout: &mut dyn io::Write) {
-    let start = PathBuf::from(starting_path);
-    match dget(start, to_search, stdout) {
-        Err(e) => println!("{e}"),
-        Ok(_) => (),
+pub fn dget_main(
+    start: PathBuf,
+    to_search: &str,
+    gitignore: Option<PathBuf>,
+    stdout: &mut dyn io::Write,
+) {
+    let gitignore_path = match gitignore {
+        None => start.clone(),
+        Some(val) => val,
+    };
+    if let Err(e) = dget(start, to_search, gitignore_path, stdout) {
+        eprintln!("{e}")
     }
 }
-fn close_enough(path: &PathBuf, to_search: &str) -> bool {
+fn close_enough(path: &Path, to_search: &str) -> bool {
     match path.file_stem().unwrap_or_default().to_str() {
         None => false,
         Some(path_name) => {
@@ -18,7 +27,7 @@ fn close_enough(path: &PathBuf, to_search: &str) -> bool {
                 Err(_) => return false,
                 Ok(val) => val,
             };
-            let arr =  [path_name.chars().count(), to_search.chars().count()];
+            let arr = [path_name.chars().count(), to_search.chars().count()];
             match arr.iter().max() {
                 None => false,
                 Some(max) => {
@@ -30,28 +39,38 @@ fn close_enough(path: &PathBuf, to_search: &str) -> bool {
                     let max_as_f64 = f64::from(max_as_i32);
                     let ratio = (max_as_f64 - edit_distance_as_f64) / max_as_f64;
                     if ratio > 0.5 {
-                        return true
+                        return true;
                     }
                     false
                 }
-            } 
+            }
         }
     }
 }
-fn dget(start: PathBuf, to_search: &str, stdout: &mut dyn io::Write) -> io::Result<()> {
+fn dget(
+    start: PathBuf,
+    to_search: &str,
+    gitignore: PathBuf,
+    stdout: &mut dyn io::Write,
+) -> io::Result<()> {
+    let gitignore = IgnoreFiles::new(&gitignore).build();
     let mut visited_vertices = HashMap::with_capacity(1000);
     let mut deque = VecDeque::with_capacity(1000);
     visited_vertices.insert(start.clone(), false);
     deque.push_back(start);
 
-    // let mut stdout = io::stdout().lock();
     while !deque.is_empty() {
         let current_node = deque.pop_front();
         if let Some(path) = current_node {
+            match gitignore.matched(path.clone(), path.is_dir()) {
+                Match::None => (),
+                Match::Ignore(_) => continue,
+                Match::Whitelist(_) => continue,
+            }
             if let Some(true) = visited_vertices.get(&path) {
                 continue;
             }
-            if close_enough(&path, to_search) {
+            if close_enough(path.as_path(), to_search) {
                 let disp = path.display();
                 writeln!(stdout, "{disp}")?;
             }
@@ -63,7 +82,6 @@ fn dget(start: PathBuf, to_search: &str, stdout: &mut dyn io::Write) -> io::Resu
             visited_vertices.insert(path.clone(), true);
             match std::fs::read_dir(&path) {
                 Err(_) => {
-                    // writeln!(stdout, "{e} {path:?}")?;
                     deque.push_back(path);
                     continue;
                 }
@@ -71,7 +89,6 @@ fn dget(start: PathBuf, to_search: &str, stdout: &mut dyn io::Write) -> io::Resu
                     for node in nodes {
                         match node {
                             Err(_) => {
-                                // writeln!(stdout, "{e}, {path:?}")?;
                                 deque.push_back(path.clone());
                                 continue;
                             }
@@ -109,36 +126,95 @@ mod tests {
         let ratio = close_enough(&path, to_search);
         assert!(!ratio)
     }
-    fn test_dget_utf8(to_search: &str, test_dir: PathBuf, test_path: &PathBuf) {
+    fn test_dget_utf8(to_search: &str, test_dir: PathBuf, expected: &PathBuf) {
         let mut fake_stdout: Vec<u8> = Vec::with_capacity(10);
-        let run = { 
-            match dget(test_dir, to_search, &mut fake_stdout) {
+        let run = {
+            match dget(
+                test_dir.clone(),
+                to_search,
+                test_dir.clone(),
+                &mut fake_stdout,
+            ) {
                 Err(_) => false,
                 Ok(_) => true,
             }
         };
-        let apple = match str::from_utf8(fake_stdout.as_ref()) {
+        let stdout_print = match str::from_utf8(fake_stdout.as_ref()) {
             Err(e) => {
-                println!("{e}");
-                return
-                },
+                eprintln!("{e}");
+                return;
+            }
             Ok(val) => val,
         };
-        assert_eq!(PathBuf::from(apple.trim()), *test_path);
-        assert!(run)
+        assert!(run);
+        assert_eq!(PathBuf::from(stdout_print.trim()), *expected);
     }
     #[test]
     fn test_dget_utf8_cases_single() {
         let start = {
             match current_dir() {
                 Err(_) => panic!("Test Failed! Cannot determine current directory\n"),
-                Ok(val) => val
+                Ok(val) => val,
             }
         };
         let test_dir = start.join("test_dir");
-        test_dget_utf8("apple", test_dir.clone(), &test_dir.join("bar").join("apple.config"));
+        test_dget_utf8(
+            "apple",
+            test_dir.clone(),
+            &test_dir.join("bar").join("apple.config"),
+        );
         test_dget_utf8("ham", test_dir.clone(), &test_dir.join("ham.txt"));
         test_dget_utf8("foo", test_dir.clone(), &test_dir.join("foo"));
-        test_dget_utf8("sandwich", test_dir.clone(), &test_dir.join("bar").join("sandwich.txt"));
+        test_dget_utf8(
+            "sandwich",
+            test_dir.clone(),
+            &test_dir.join("bar").join("sandwich.txt"),
+        );
+    }
+
+    fn test_gitignore(test_dir: PathBuf, to_search: &str, gitignore_path: &str, expected: PathBuf) {
+        let mut fake_stdout: Vec<u8> = Vec::new();
+        let run = {
+            match dget(
+                test_dir.clone(),
+                to_search,
+                test_dir.join(gitignore_path),
+                &mut fake_stdout,
+            ) {
+                Err(_) => false,
+                Ok(_) => true,
+            }
+        };
+        let stdout_print = match str::from_utf8(fake_stdout.as_ref()) {
+            Err(e) => {
+                println!("{e}");
+                return;
+            }
+            Ok(val) => val,
+        };
+        assert!(run);
+        assert_eq!(PathBuf::from(stdout_print.trim()), expected)
+    }
+    #[test]
+    fn test_gitignore_cases() {
+        let start = {
+            match current_dir() {
+                Err(_) => panic!("Test Failed! Cannot determine current directory\n"),
+                Ok(val) => val,
+            }
+        };
+        let test_dir = start.join("test_dir");
+        test_gitignore(
+            test_dir.clone(),
+            "turkey",
+            "./custom.ignore",
+            PathBuf::new(),
+        );
+        test_gitignore(
+            test_dir.clone(),
+            "turkey",
+            "",
+            test_dir.join("chicken").join("turkey.file"),
+        );
     }
 }

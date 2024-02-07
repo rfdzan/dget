@@ -4,8 +4,9 @@ use std::io;
 fn main() {
     let args = Args::parse();
     dget_main(
-        args.get_starting_dir().as_str(),
+        args.get_starting_dir(),
         args.get_keywords().as_str(),
-        &mut io::stdout().lock()
+        args.get_gitignore(),
+        &mut io::stdout().lock(),
     );
 }
