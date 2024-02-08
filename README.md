@@ -1,4 +1,4 @@
-# dget
+![img](https://i.imgur.com/yk1iwSr.png)
 Think of `mlocate`, but dumber.
 # How it works
 `dget` doesn't store paths in a nightly-updated database like `mlocate`. It doesn't use regex like `grep`.  
