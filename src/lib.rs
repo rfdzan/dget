@@ -67,7 +67,7 @@ impl<'a> IgnoreFiles<'a> {
         gitignore
     }
     fn check_for_existing_ignores(&self) -> IgnoreExists {
-        let ignore_files = [".gitignore", ".ignore"];
+        let ignore_file_names = [".gitignore", ".ignore"];
         let mut ignore_exist = IgnoreExists::No(PathBuf::new());
         let gitignore_path = match self.gitignore_path {
             None => self.current_dir,
@@ -88,13 +88,13 @@ impl<'a> IgnoreFiles<'a> {
                     }
                     Ok(path) => path.path(),
                 };
-                let path = owned_path
+                let file_name = owned_path
                     .file_stem()
                     .unwrap_or_default()
                     .to_str()
                     .unwrap_or_default();
-                if ignore_files.contains(&path) {
-                    ignore_exist = IgnoreExists::Yes(PathBuf::from(path));
+                if ignore_file_names.contains(&file_name) {
+                    ignore_exist = IgnoreExists::Yes(PathBuf::from(file_name));
                     break;
                 }
             }

@@ -16,7 +16,7 @@ pub fn dget_main(
         eprintln!("{e}")
     }
 }
-/// If the edit distance as percentage is bigger than the threshold, prints the path to the terminal.
+/// If the edit distance as ratio is bigger than the threshold, prints the path to the terminal.
 fn close_enough(path: &Path, to_search: &str) -> bool {
     let Some(path_name) = path.file_stem().unwrap_or_default().to_str() else {
         return false;
@@ -42,7 +42,7 @@ fn close_enough(path: &Path, to_search: &str) -> bool {
 
 /// The search algorithm of dget.
 /// - dget uses Breadth-First Search algorithm and treats your folders
-/// as nodes and your files as leafs in a graph data structure.
+/// as nodes and your files as edges in a graph data structure.
 fn dget(
     start: PathBuf,
     to_search: &str,
@@ -175,7 +175,7 @@ mod tests {
         };
         let stdout_print = match str::from_utf8(fake_stdout.as_ref()) {
             Err(e) => {
-                println!("{e}");
+                eprintln!("{e}");
                 return;
             }
             Ok(val) => val,
