@@ -5,55 +5,51 @@ use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::path::{Path, PathBuf};
 
+/// Entry to dget search.
 pub fn dget_main(
     start: PathBuf,
     to_search: &str,
-    gitignore: Option<PathBuf>,
+    gitignore: Option<&Path>,
     stdout: &mut dyn io::Write,
 ) {
-    let gitignore_path = match gitignore {
-        None => start.clone(),
-        Some(val) => val,
-    };
-    if let Err(e) = dget(start, to_search, gitignore_path, stdout) {
+    if let Err(e) = dget(start, to_search, gitignore, stdout) {
         eprintln!("{e}")
     }
 }
+/// If the edit distance as ratio is bigger than the threshold, prints the path to the terminal.
 fn close_enough(path: &Path, to_search: &str) -> bool {
-    match path.file_stem().unwrap_or_default().to_str() {
-        None => false,
-        Some(path_name) => {
-            let edit_distance = match i32::try_from(levenshtein(path_name, to_search)) {
-                Err(_) => return false,
-                Ok(val) => val,
-            };
-            let arr = [path_name.chars().count(), to_search.chars().count()];
-            match arr.iter().max() {
-                None => false,
-                Some(max) => {
-                    let max_as_i32 = match i32::try_from(*max) {
-                        Err(_) => return false,
-                        Ok(val) => val,
-                    };
-                    let edit_distance_as_f64 = f64::from(edit_distance);
-                    let max_as_f64 = f64::from(max_as_i32);
-                    let ratio = (max_as_f64 - edit_distance_as_f64) / max_as_f64;
-                    if ratio > 0.5 {
-                        return true;
-                    }
-                    false
-                }
-            }
-        }
+    let Some(path_name) = path.file_stem().unwrap_or_default().to_str() else {
+        return false;
+    };
+    let Ok(edit_distance) = i32::try_from(levenshtein(path_name, to_search)) else {
+        return false;
+    };
+    let arr = [path_name.chars().count(), to_search.chars().count()];
+    let Some(max) = arr.iter().max() else {
+        return false;
+    };
+    let Ok(max_as_i32) = i32::try_from(*max) else {
+        return false;
+    };
+    let edit_distance_as_f64 = f64::from(edit_distance);
+    let max_as_f64 = f64::from(max_as_i32);
+    let ratio = (max_as_f64 - edit_distance_as_f64) / max_as_f64;
+    if ratio > 0.5 {
+        return true;
     }
+    false
 }
+
+/// The search algorithm of dget.
+/// - dget uses Breadth-First Search algorithm and treats your folders
+/// as nodes and your files as edges in a graph data structure.
 fn dget(
     start: PathBuf,
     to_search: &str,
-    gitignore: PathBuf,
+    gitignore: Option<&Path>,
     stdout: &mut dyn io::Write,
 ) -> io::Result<()> {
-    let gitignore = IgnoreFiles::new(&gitignore).build();
+    let gitignore = IgnoreFiles::new(start.as_path(), gitignore).build();
     let mut visited_vertices = HashMap::with_capacity(1000);
     let mut deque = VecDeque::with_capacity(1000);
     visited_vertices.insert(start.clone(), false);
@@ -74,34 +70,26 @@ fn dget(
                 let disp = path.display();
                 writeln!(stdout, "{disp}")?;
             }
-            if path.is_file() || path.is_symlink() {
+            if path.is_file() {
+                continue;
+            }
+            if path.is_symlink() {
                 visited_vertices.insert(path.clone(), true);
                 deque.push_back(path);
                 continue;
             }
             visited_vertices.insert(path.clone(), true);
-            match std::fs::read_dir(&path) {
-                Err(_) => {
-                    deque.push_back(path);
+            let Ok(nodes) = std::fs::read_dir(&path) else {
+                continue;
+            };
+            for node in nodes {
+                let Ok(direntry) = node else {
+                    continue;
+                };
+                if let Some(true) = visited_vertices.get(&direntry.path()) {
                     continue;
                 }
-                Ok(nodes) => {
-                    for node in nodes {
-                        match node {
-                            Err(_) => {
-                                deque.push_back(path.clone());
-                                continue;
-                            }
-                            Ok(direntry) => {
-                                let node_pathbuf = direntry.path();
-                                if let Some(true) = visited_vertices.get(&node_pathbuf) {
-                                    continue;
-                                }
-                                deque.push_back(node_pathbuf);
-                            }
-                        }
-                    }
-                }
+                deque.push_back(direntry.path());
             }
         }
     }
@@ -132,7 +120,7 @@ mod tests {
             match dget(
                 test_dir.clone(),
                 to_search,
-                test_dir.clone(),
+                Some(test_dir.as_path()),
                 &mut fake_stdout,
             ) {
                 Err(_) => false,
@@ -178,7 +166,7 @@ mod tests {
             match dget(
                 test_dir.clone(),
                 to_search,
-                test_dir.join(gitignore_path),
+                Some(test_dir.join(gitignore_path).as_path()),
                 &mut fake_stdout,
             ) {
                 Err(_) => false,
@@ -187,7 +175,7 @@ mod tests {
         };
         let stdout_print = match str::from_utf8(fake_stdout.as_ref()) {
             Err(e) => {
-                println!("{e}");
+                eprintln!("{e}");
                 return;
             }
             Ok(val) => val,

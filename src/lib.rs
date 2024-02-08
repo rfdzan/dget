@@ -1,6 +1,6 @@
 use clap::Parser;
 use ignore::gitignore::Gitignore;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 pub mod dget;
 
 #[derive(Parser, Debug)]
@@ -33,25 +33,32 @@ impl Args {
     pub fn get_keywords(&self) -> String {
         self.find.clone()
     }
-    pub fn get_gitignore(&self) -> Option<PathBuf> {
+    pub fn get_gitignore(&self) -> Option<&Path> {
         if !self.gitignore.is_empty() {
             if !PathBuf::from(self.gitignore.as_str()).exists() {
                 eprintln!("ignore file {} does not exist", self.gitignore);
                 std::process::exit(0);
             }
-            Some(PathBuf::from(self.gitignore.as_str()))
+            Some(Path::new(self.gitignore.as_str()))
         } else {
             None
         }
     }
 }
+/// Handles gitignore files
 pub struct IgnoreFiles<'a> {
-    path: &'a PathBuf,
+    current_dir: &'a Path,
+    gitignore_path: Option<&'a Path>,
 }
 impl<'a> IgnoreFiles<'a> {
-    pub fn new(s: &PathBuf) -> IgnoreFiles {
-        IgnoreFiles { path: s }
+    /// Creates a new IgnoreFile.
+    pub fn new(s: &'a Path, g: Option<&'a Path>) -> IgnoreFiles<'a> {
+        IgnoreFiles {
+            current_dir: s,
+            gitignore_path: g,
+        }
     }
+    /// Builds a Gitignore that uses globs inside .ignore files to pattern match visited files/folder paths.
     pub fn build(&self) -> Gitignore {
         let (gitignore, _) = match self.check_for_existing_ignores() {
             IgnoreExists::No(empty_path) => Gitignore::new(empty_path),
@@ -60,39 +67,42 @@ impl<'a> IgnoreFiles<'a> {
         gitignore
     }
     fn check_for_existing_ignores(&self) -> IgnoreExists {
-        let ignore_files = [".gitignore", ".ignore"];
+        let ignore_file_names = [".gitignore", ".ignore"];
         let mut ignore_exist = IgnoreExists::No(PathBuf::new());
-        if self.path.is_file() {
-            return IgnoreExists::Yes(PathBuf::from(self.path));
+        let gitignore_path = match self.gitignore_path {
+            None => self.current_dir,
+            Some(path) => path,
+        };
+        // If provided .ignore path points to a file, use it.
+        if gitignore_path.is_file() {
+            return IgnoreExists::Yes(gitignore_path.to_path_buf());
         }
-        let read_dir = std::fs::read_dir(self.path);
-
-        match read_dir {
-            Err(e) => eprintln!("{e}"),
-            Ok(read) => {
-                for f in read {
-                    match f {
-                        Err(e) => eprintln!("{e}"),
-                        Ok(path) => {
-                            let owned_path = path.path();
-                            let path = owned_path
-                                .file_stem()
-                                .unwrap_or_default()
-                                .to_str()
-                                .unwrap_or_default();
-                            if ignore_files.contains(&path) {
-                                ignore_exist = IgnoreExists::Yes(PathBuf::from(path));
-                                break;
-                            }
-                        }
+        // If no .ignore file path is provided or it doesn't point to a file, scan the directory for one.
+        // If none exist, then an empty Gitignore is also valid.
+        if let Ok(read) = std::fs::read_dir(gitignore_path).map_err(|e| eprintln!("{e}")) {
+            for f in read {
+                let owned_path = match f {
+                    Err(e) => {
+                        eprintln!("{e}");
+                        continue;
                     }
+                    Ok(path) => path.path(),
+                };
+                let file_name = owned_path
+                    .file_stem()
+                    .unwrap_or_default()
+                    .to_str()
+                    .unwrap_or_default();
+                if ignore_file_names.contains(&file_name) {
+                    ignore_exist = IgnoreExists::Yes(PathBuf::from(file_name));
+                    break;
                 }
             }
         }
         ignore_exist
     }
 }
-
+/// Enum variants denoting the existence of a .ignore file.
 #[derive(Debug)]
 pub enum IgnoreExists {
     Yes(PathBuf),
