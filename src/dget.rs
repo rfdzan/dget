@@ -84,25 +84,17 @@ fn dget(
                 continue;
             }
             visited_vertices.insert(path.clone(), true);
-            match std::fs::read_dir(&path) {
-                Err(_) => {
+            let Ok(nodes) = std::fs::read_dir(&path) else {
+                continue;
+            };
+            for node in nodes {
+                let Ok(direntry) = node else {
+                    continue;
+                };
+                if let Some(true) = visited_vertices.get(&direntry.path()) {
                     continue;
                 }
-                Ok(nodes) => {
-                    for node in nodes {
-                        match node {
-                            Err(_) => {
-                                continue;
-                            }
-                            Ok(direntry) => {
-                                if let Some(true) = visited_vertices.get(&direntry.path()) {
-                                    continue;
-                                }
-                                deque.push_back(direntry.path());
-                            }
-                        }
-                    }
-                }
+                deque.push_back(direntry.path());
             }
         }
     }
