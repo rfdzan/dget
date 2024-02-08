@@ -5,6 +5,7 @@ use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::path::{Path, PathBuf};
 
+/// Entry to dget search.
 pub fn dget_main(
     start: PathBuf,
     to_search: &str,
@@ -15,6 +16,7 @@ pub fn dget_main(
         eprintln!("{e}")
     }
 }
+/// If the edit distance as percentage is bigger than the threshold, prints the path to the terminal.
 fn close_enough(path: &Path, to_search: &str) -> bool {
     match path.file_stem().unwrap_or_default().to_str() {
         None => false,
@@ -43,6 +45,9 @@ fn close_enough(path: &Path, to_search: &str) -> bool {
         }
     }
 }
+/// The search algorithm of dget.
+/// - dget uses Breadth-First Search algorithm and treats your folders
+/// as nodes and your files as leafs in a graph data structure.
 fn dget(
     start: PathBuf,
     to_search: &str,

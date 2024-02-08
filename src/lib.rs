@@ -45,17 +45,20 @@ impl Args {
         }
     }
 }
+/// Handles gitignore files
 pub struct IgnoreFiles<'a> {
     current_dir: &'a Path,
     gitignore_path: Option<&'a Path>,
 }
 impl<'a> IgnoreFiles<'a> {
+    /// Creates a new IgnoreFile.
     pub fn new(s: &'a Path, g: Option<&'a Path>) -> IgnoreFiles<'a> {
         IgnoreFiles {
             current_dir: s,
             gitignore_path: g,
         }
     }
+    /// Builds a Gitignore that uses globs inside .ignore files to pattern match visited files/folder paths.
     pub fn build(&self) -> Gitignore {
         let (gitignore, _) = match self.check_for_existing_ignores() {
             IgnoreExists::No(empty_path) => Gitignore::new(empty_path),
@@ -70,9 +73,12 @@ impl<'a> IgnoreFiles<'a> {
             None => self.current_dir,
             Some(path) => path,
         };
+        // If provided .ignore path points to a file, use it.
         if gitignore_path.is_file() {
             return IgnoreExists::Yes(gitignore_path.to_path_buf());
         }
+        // If no .ignore file path is provided or it doesn't point to a file, scan the directory for one.
+        // If none exist, then an empty Gitignore is also valid.
         if let Ok(read) = std::fs::read_dir(gitignore_path).map_err(|e| eprintln!("{e}")) {
             for f in read {
                 let owned_path = match f {
@@ -96,7 +102,7 @@ impl<'a> IgnoreFiles<'a> {
         ignore_exist
     }
 }
-
+/// Enum variants denoting the existence of a .ignore file.
 #[derive(Debug)]
 pub enum IgnoreExists {
     Yes(PathBuf),
