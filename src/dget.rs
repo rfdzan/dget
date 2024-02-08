@@ -18,33 +18,28 @@ pub fn dget_main(
 }
 /// If the edit distance as percentage is bigger than the threshold, prints the path to the terminal.
 fn close_enough(path: &Path, to_search: &str) -> bool {
-    match path.file_stem().unwrap_or_default().to_str() {
-        None => false,
-        Some(path_name) => {
-            let edit_distance = match i32::try_from(levenshtein(path_name, to_search)) {
-                Err(_) => return false,
-                Ok(val) => val,
-            };
-            let arr = [path_name.chars().count(), to_search.chars().count()];
-            match arr.iter().max() {
-                None => false,
-                Some(max) => {
-                    let max_as_i32 = match i32::try_from(*max) {
-                        Err(_) => return false,
-                        Ok(val) => val,
-                    };
-                    let edit_distance_as_f64 = f64::from(edit_distance);
-                    let max_as_f64 = f64::from(max_as_i32);
-                    let ratio = (max_as_f64 - edit_distance_as_f64) / max_as_f64;
-                    if ratio > 0.5 {
-                        return true;
-                    }
-                    false
-                }
-            }
-        }
+    let Some(path_name) = path.file_stem().unwrap_or_default().to_str() else {
+        return false;
+    };
+    let Ok(edit_distance) = i32::try_from(levenshtein(path_name, to_search)) else {
+        return false;
+    };
+    let arr = [path_name.chars().count(), to_search.chars().count()];
+    let Some(max) = arr.iter().max() else {
+        return false;
+    };
+    let Ok(max_as_i32) = i32::try_from(*max) else {
+        return false;
+    };
+    let edit_distance_as_f64 = f64::from(edit_distance);
+    let max_as_f64 = f64::from(max_as_i32);
+    let ratio = (max_as_f64 - edit_distance_as_f64) / max_as_f64;
+    if ratio > 0.5 {
+        return true;
     }
+    false
 }
+
 /// The search algorithm of dget.
 /// - dget uses Breadth-First Search algorithm and treats your folders
 /// as nodes and your files as leafs in a graph data structure.
