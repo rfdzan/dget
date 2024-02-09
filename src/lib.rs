@@ -158,7 +158,7 @@ pub fn dfs(
                 std.write(format!("{disp}\n").as_bytes())?;
             }
             if let Some(true) = v.get(&direntry.path()) {
-                break;
+                continue;
             }
             if direntry.path().is_symlink() {
                 continue;
