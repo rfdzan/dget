@@ -137,33 +137,52 @@ pub fn close_enough(path: &Path, to_search: &str) -> bool {
 }
 
 pub fn dfs(
-    st: PathBuf,
-    s: &str,
-    g: &Gitignore,
-    v: &mut HashMap<PathBuf, bool>,
-    std: &mut dyn io::Write,
+    start: PathBuf,
+    search: &str,
+    gitignore: &Gitignore,
+    visited_vertices: &mut HashMap<PathBuf, bool>,
+    stdout: &mut dyn io::Write,
 ) -> io::Result<()> {
-    if let Ok(dir) = std::fs::read_dir(st.as_path()) {
-        std.flush()?;
-        v.insert(st.clone(), true);
-        for d in dir {
-            let Ok(direntry) = d else { continue };
-            match g.matched(direntry.path(), direntry.path().is_dir()) {
-                Match::None => (),
-                Match::Ignore(_) => continue,
-                Match::Whitelist(_) => continue,
+    let mut vec = Vec::with_capacity(100);
+    vec.push(start);
+    while !vec.is_empty() {
+        let Some(current_path) = vec.pop() else {
+            break;
+        };
+        visited_vertices.insert(current_path.clone(), true);
+        match std::fs::read_dir(current_path.as_path()) {
+            Err(_) => (),
+            Ok(dir) => {
+                for d in dir {
+                    let Ok(direntry) = d else { continue };
+                    match gitignore.matched(direntry.path(), direntry.path().is_dir()) {
+                        Match::None => (),
+                        Match::Ignore(_) => continue,
+                        Match::Whitelist(_) => continue,
+                    }
+                    if let Some(true) = visited_vertices.get(&direntry.path()) {
+                        continue;
+                    }
+                    if close_enough(direntry.path().as_path(), search) {
+                        let disp = direntry.path().display().to_string();
+                        writeln!(stdout, "{disp}\n")?;
+                    }
+                    match std::fs::read_dir(direntry.path()) {
+                        Err(_) => {}
+                        Ok(read_dir) => {
+                            for d in read_dir {
+                                match gitignore.matched(direntry.path(), direntry.path().is_dir()) {
+                                    Match::None => (),
+                                    Match::Ignore(_) => continue,
+                                    Match::Whitelist(_) => continue,
+                                }
+                                let Ok(dir) = d else { continue };
+                                vec.push(dir.path());
+                            }
+                        }
+                    }
+                }
             }
-            if close_enough(direntry.path().as_path(), s) {
-                let disp = direntry.path().display().to_string();
-                std.write(format!("{disp}\n").as_bytes())?;
-            }
-            if let Some(true) = v.get(&direntry.path()) {
-                continue;
-            }
-            if direntry.path().is_symlink() {
-                continue;
-            }
-            dfs(direntry.path(), s, &g, v, std)?;
         }
     }
     Ok(())
