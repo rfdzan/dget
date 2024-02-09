@@ -1,5 +1,9 @@
 use clap::Parser;
 use ignore::gitignore::Gitignore;
+use ignore::Match;
+use levenshtein::levenshtein;
+use std::collections::HashMap;
+use std::io;
 use std::path::{Path, PathBuf};
 pub mod dget;
 
@@ -107,4 +111,58 @@ impl<'a> IgnoreFiles<'a> {
 pub enum IgnoreExists {
     Yes(PathBuf),
     No(PathBuf),
+}
+
+fn close_enough(path: &Path, to_search: &str) -> bool {
+    let Some(path_name) = path.file_stem().unwrap_or_default().to_str() else {
+        return false;
+    };
+    let Ok(edit_distance) = i32::try_from(levenshtein(path_name, to_search)) else {
+        return false;
+    };
+    let arr = [path_name.chars().count(), to_search.chars().count()];
+    let Some(max) = arr.iter().max() else {
+        return false;
+    };
+    let Ok(max_as_i32) = i32::try_from(*max) else {
+        return false;
+    };
+    let edit_distance_as_f64 = f64::from(edit_distance);
+    let max_as_f64 = f64::from(max_as_i32);
+    let ratio = (max_as_f64 - edit_distance_as_f64) / max_as_f64;
+    if ratio > 0.5 {
+        return true;
+    }
+    false
+}
+
+pub fn dfs(
+    st: PathBuf,
+    s: String,
+    g: Gitignore,
+    v: &mut HashMap<PathBuf, bool>,
+    std: &mut dyn io::Write,
+) {
+    if let Ok(dir) = std::fs::read_dir(st.as_path()) {
+        std.flush().unwrap();
+        v.insert(st.clone(), true);
+        for d in dir {
+            let Ok(direntry) = d else { continue };
+            match g.matched(direntry.path(), direntry.path().is_dir()) {
+                Match::None => (),
+                Match::Ignore(_) => continue,
+                Match::Whitelist(_) => continue,
+            }
+            if close_enough(direntry.path().as_path(), s.as_str()) {
+                let disp = direntry.path().display().to_string();
+                std.write(format!("{disp}\n").as_bytes()).unwrap();
+            }
+            if let Some(true) = v.get(&direntry.path()) {
+                continue;
+            }
+            if direntry.path().is_dir() {
+                dfs(direntry.path(), s.clone(), g.clone(), v, std);
+            }
+        }
+    }
 }
