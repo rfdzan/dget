@@ -17,5 +17,7 @@ fn main() {
     let g = IgnoreFiles::new(st.as_path(), args.get_gitignore()).build();
     let mut hashmap = HashMap::new();
     let mut stdout = BufWriter::new(io::stdout().lock());
-    let _ = dfs(st, s, g, &mut hashmap, &mut stdout);
+    if let Err(e) = dfs(st, s.as_str(), &g, &mut hashmap, &mut stdout) {
+        eprintln!("{e}");
+    }
 }

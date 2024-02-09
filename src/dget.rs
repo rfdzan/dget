@@ -1,6 +1,5 @@
-use crate::IgnoreFiles;
+use crate::{close_enough, IgnoreFiles};
 use ignore::Match;
-use levenshtein::levenshtein;
 use std::collections::{HashMap, VecDeque};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -15,29 +14,6 @@ pub fn dget_main(
     if let Err(e) = dget(start, to_search, gitignore, stdout) {
         eprintln!("{e}")
     }
-}
-/// If the edit distance as ratio is bigger than the threshold, prints the path to the terminal.
-fn close_enough(path: &Path, to_search: &str) -> bool {
-    let Some(path_name) = path.file_stem().unwrap_or_default().to_str() else {
-        return false;
-    };
-    let Ok(edit_distance) = i32::try_from(levenshtein(path_name, to_search)) else {
-        return false;
-    };
-    let arr = [path_name.chars().count(), to_search.chars().count()];
-    let Some(max) = arr.iter().max() else {
-        return false;
-    };
-    let Ok(max_as_i32) = i32::try_from(*max) else {
-        return false;
-    };
-    let edit_distance_as_f64 = f64::from(edit_distance);
-    let max_as_f64 = f64::from(max_as_i32);
-    let ratio = (max_as_f64 - edit_distance_as_f64) / max_as_f64;
-    if ratio > 0.5 {
-        return true;
-    }
-    false
 }
 
 /// The search algorithm of dget.

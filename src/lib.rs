@@ -112,8 +112,8 @@ pub enum IgnoreExists {
     Yes(PathBuf),
     No(PathBuf),
 }
-
-fn close_enough(path: &Path, to_search: &str) -> bool {
+/// If the edit distance as ratio is bigger than the threshold, prints the path to the terminal.
+pub fn close_enough(path: &Path, to_search: &str) -> bool {
     let Some(path_name) = path.file_stem().unwrap_or_default().to_str() else {
         return false;
     };
@@ -138,13 +138,13 @@ fn close_enough(path: &Path, to_search: &str) -> bool {
 
 pub fn dfs(
     st: PathBuf,
-    s: String,
-    g: Gitignore,
+    s: &str,
+    g: &Gitignore,
     v: &mut HashMap<PathBuf, bool>,
     std: &mut dyn io::Write,
-) {
+) -> io::Result<()> {
     if let Ok(dir) = std::fs::read_dir(st.as_path()) {
-        std.flush().unwrap();
+        std.flush()?;
         v.insert(st.clone(), true);
         for d in dir {
             let Ok(direntry) = d else { continue };
@@ -153,16 +153,18 @@ pub fn dfs(
                 Match::Ignore(_) => continue,
                 Match::Whitelist(_) => continue,
             }
-            if close_enough(direntry.path().as_path(), s.as_str()) {
+            if close_enough(direntry.path().as_path(), s) {
                 let disp = direntry.path().display().to_string();
-                std.write(format!("{disp}\n").as_bytes()).unwrap();
+                std.write(format!("{disp}\n").as_bytes())?;
             }
             if let Some(true) = v.get(&direntry.path()) {
+                break;
+            }
+            if direntry.path().is_symlink() {
                 continue;
             }
-            if direntry.path().is_dir() {
-                dfs(direntry.path(), s.clone(), g.clone(), v, std);
-            }
+            dfs(direntry.path(), s, &g, v, std)?;
         }
     }
+    Ok(())
 }
