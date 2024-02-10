@@ -147,11 +147,12 @@ pub fn dfs(
     stack.push(start.clone());
     visited_vertices.insert(start, true);
     while let Some(current_vertex) = stack.pop() {
-        // println!("{current_vertex:?}");
-        let mut neighbours = Vec::with_capacity(1000);
-        if !current_vertex.is_dir() {
-            continue;
+        if close_enough(current_vertex.as_path(), search) {
+            let disp = current_vertex.display();
+            writeln!(stdout, "{disp}")?;
         }
+        let mut neighbours = Vec::with_capacity(1000);
+
         let Ok(readdir) = std::fs::read_dir(current_vertex) else {
             continue;
         };
@@ -161,7 +162,10 @@ pub fn dfs(
                     eprintln!("{e}")
                 }
                 Ok(direntry) => {
-                    neighbours.push(direntry);
+                    if let Some(true) = visited_vertices.get(&direntry.path()) {
+                        continue;
+                    }
+                    neighbours.push(direntry)
                 }
             }
         }
