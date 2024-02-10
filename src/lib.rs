@@ -143,45 +143,35 @@ pub fn dfs(
     visited_vertices: &mut HashMap<PathBuf, bool>,
     stdout: &mut dyn io::Write,
 ) -> io::Result<()> {
-    let mut vec = Vec::with_capacity(100);
-    vec.push(start);
-    while !vec.is_empty() {
-        let Some(current_path) = vec.pop() else {
-            break;
-        };
-        visited_vertices.insert(current_path.clone(), true);
-        match std::fs::read_dir(current_path.as_path()) {
-            Err(_) => (),
-            Ok(dir) => {
-                for d in dir {
-                    let Ok(direntry) = d else { continue };
-                    match gitignore.matched(direntry.path(), direntry.path().is_dir()) {
-                        Match::None => (),
-                        Match::Ignore(_) => continue,
-                        Match::Whitelist(_) => continue,
-                    }
-                    if let Some(true) = visited_vertices.get(&direntry.path()) {
-                        continue;
-                    }
-                    if close_enough(direntry.path().as_path(), search) {
-                        let disp = direntry.path().display().to_string();
-                        writeln!(stdout, "{disp}\n")?;
-                    }
-                    match std::fs::read_dir(direntry.path()) {
-                        Err(_) => {}
-                        Ok(read_dir) => {
-                            for d in read_dir {
-                                match gitignore.matched(direntry.path(), direntry.path().is_dir()) {
-                                    Match::None => (),
-                                    Match::Ignore(_) => continue,
-                                    Match::Whitelist(_) => continue,
-                                }
-                                let Ok(dir) = d else { continue };
-                                vec.push(dir.path());
-                            }
+    let mut stack = Vec::with_capacity(100);
+    stack.push(start.clone());
+    visited_vertices.insert(start, true);
+    while let Some(current_vertex) = stack.pop() {
+        println!("{current_vertex:?}");
+        // IN ITERATIVE DFS WE NEED TO KNOW THE NEIGHBORS IN ADVANCE
+        // JESUS FIN CHRIST THIS WAS THE PROBLEM
+        let mut neighbours = Vec::new();
+        match std::fs::read_dir(current_vertex) {
+            Err(e) => {
+                // eprintln!("{e}");
+            }
+            Ok(readdir) => {
+                for dir in readdir {
+                    match dir {
+                        Err(e) => {
+                            // eprintln!("{e}")
+                        }
+                        Ok(direntry) => {
+                            neighbours.push(direntry);
                         }
                     }
                 }
+            }
+        }
+        for direntry in neighbours {
+            if let None = visited_vertices.get(&direntry.path()) {
+                visited_vertices.insert(direntry.path(), true);
+                stack.push(direntry.path());
             }
         }
     }
