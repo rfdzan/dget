@@ -147,32 +147,30 @@ pub fn dfs(
     stack.push(start.clone());
     visited_vertices.insert(start, true);
     while let Some(current_vertex) = stack.pop() {
-        println!("{current_vertex:?}");
-        // IN ITERATIVE DFS WE NEED TO KNOW THE NEIGHBORS IN ADVANCE
-        // JESUS FIN CHRIST THIS WAS THE PROBLEM
-        let mut neighbours = Vec::new();
-        match std::fs::read_dir(current_vertex) {
-            Err(e) => {
-                // eprintln!("{e}");
-            }
-            Ok(readdir) => {
-                for dir in readdir {
-                    match dir {
-                        Err(e) => {
-                            // eprintln!("{e}")
-                        }
-                        Ok(direntry) => {
-                            neighbours.push(direntry);
-                        }
-                    }
+        // println!("{current_vertex:?}");
+        let mut neighbours = Vec::with_capacity(1000);
+        if !current_vertex.is_dir() {
+            continue;
+        }
+        let Ok(readdir) = std::fs::read_dir(current_vertex) else {
+            continue;
+        };
+        for dir in readdir {
+            match dir {
+                Err(e) => {
+                    eprintln!("{e}")
+                }
+                Ok(direntry) => {
+                    neighbours.push(direntry);
                 }
             }
         }
         for direntry in neighbours {
-            if let None = visited_vertices.get(&direntry.path()) {
-                visited_vertices.insert(direntry.path(), true);
-                stack.push(direntry.path());
-            }
+            let None = visited_vertices.get(&direntry.path()) else {
+                continue;
+            };
+            visited_vertices.insert(direntry.path(), true);
+            stack.push(direntry.path());
         }
     }
     Ok(())
