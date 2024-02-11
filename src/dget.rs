@@ -1,7 +1,7 @@
 use crate::IgnoreFiles;
 use ignore::Match;
 use levenshtein::levenshtein;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -50,47 +50,39 @@ fn dget(
     stdout: &mut dyn io::Write,
 ) -> io::Result<()> {
     let gitignore = IgnoreFiles::new(start.as_path(), gitignore).build();
-    let mut visited_vertices = HashMap::with_capacity(1000);
+    let mut visited_vertices = HashSet::with_capacity(1000);
     let mut deque = VecDeque::with_capacity(1000);
-    visited_vertices.insert(start.clone(), false);
     deque.push_back(start);
 
-    while !deque.is_empty() {
-        let current_node = deque.pop_front();
-        if let Some(path) = current_node {
-            match gitignore.matched(path.clone(), path.is_dir()) {
-                Match::None => (),
-                Match::Ignore(_) => continue,
-                Match::Whitelist(_) => continue,
-            }
-            if let Some(true) = visited_vertices.get(&path) {
-                continue;
-            }
-            if close_enough(path.as_path(), to_search) {
-                let disp = path.display();
-                writeln!(stdout, "{disp}")?;
-            }
-            if path.is_file() {
-                continue;
-            }
-            if path.is_symlink() {
-                visited_vertices.insert(path.clone(), true);
-                deque.push_back(path);
-                continue;
-            }
-            visited_vertices.insert(path.clone(), true);
-            let Ok(nodes) = std::fs::read_dir(&path) else {
+    while let Some(current_vertex) = deque.pop_front() {
+        if !visited_vertices.insert(current_vertex.clone()) {
+            continue;
+        }
+        match gitignore.matched(current_vertex.clone(), current_vertex.is_dir()) {
+            Match::None => (),
+            Match::Ignore(_) => continue,
+            Match::Whitelist(_) => continue,
+        }
+        if close_enough(current_vertex.as_path(), to_search) {
+            let disp = current_vertex.display();
+            writeln!(stdout, "{disp}")?;
+        }
+        if current_vertex.is_file() {
+            continue;
+        }
+        if current_vertex.is_symlink() {
+            visited_vertices.insert(current_vertex.clone());
+            deque.push_back(current_vertex);
+            continue;
+        }
+        let Ok(nodes) = std::fs::read_dir(&current_vertex) else {
+            continue;
+        };
+        for node in nodes {
+            let Ok(direntry) = node else {
                 continue;
             };
-            for node in nodes {
-                let Ok(direntry) = node else {
-                    continue;
-                };
-                if let Some(true) = visited_vertices.get(&direntry.path()) {
-                    continue;
-                }
-                deque.push_back(direntry.path());
-            }
+            deque.push_back(direntry.path());
         }
     }
     Ok(())
