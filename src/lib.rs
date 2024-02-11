@@ -2,7 +2,7 @@ use clap::Parser;
 use ignore::gitignore::Gitignore;
 use ignore::Match;
 use levenshtein::levenshtein;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::{Path, PathBuf};
 pub mod dget;
@@ -140,16 +140,16 @@ pub fn dfs(
     start: PathBuf,
     search: &str,
     gitignore: &Gitignore,
-    visited_vertices: &mut HashMap<PathBuf, bool>,
+    visited_vertices: &mut HashSet<PathBuf>,
     stdout: &mut dyn io::Write,
 ) -> io::Result<()> {
     let mut stack = Vec::with_capacity(100);
     stack.push(start.clone());
-    visited_vertices.insert(start, true);
 
     while let Some(current_vertex) = stack.pop() {
-        let mut neighbours = Vec::with_capacity(1000);
-
+        if !visited_vertices.insert(current_vertex.clone()) {
+            continue;
+        };
         let Ok(readdir) = std::fs::read_dir(current_vertex) else {
             continue;
         };
@@ -157,21 +157,11 @@ pub fn dfs(
             let Ok(direntry) = dir else {
                 continue;
             };
-            if let Some(true) = visited_vertices.get(&direntry.path()) {
-                continue;
-            }
-            neighbours.push(direntry)
-        }
-        for direntry in neighbours {
             if close_enough(direntry.path().as_path(), search) {
                 let owned_path = direntry.path();
                 let disp = owned_path.display();
                 writeln!(stdout, "{disp}")?;
             }
-            let None = visited_vertices.get(&direntry.path()) else {
-                continue;
-            };
-            visited_vertices.insert(direntry.path(), true);
             stack.push(direntry.path());
         }
     }
