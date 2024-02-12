@@ -71,7 +71,6 @@ fn dget(
             continue;
         }
         if current_vertex.is_symlink() {
-            visited_vertices.insert(current_vertex.clone());
             deque.push_back(current_vertex);
             continue;
         }
