@@ -135,7 +135,29 @@ pub fn close_enough(path: &Path, to_search: &str) -> bool {
     }
     false
 }
-
+struct DFS {
+    path: PathBuf,
+    stack: Vec<PathBuf>,
+    search: String,
+    gitignore: Gitignore,
+}
+impl DFS {
+    fn new(args: Args) -> DFS {
+        DFS {
+            path: args.get_starting_dir(),
+            stack: Vec::new(),
+            search: args.get_keywords(),
+            gitignore: IgnoreFiles::new(args.get_starting_dir().as_path(), args.get_gitignore())
+                .build(),
+        }
+    }
+}
+impl Iterator for DFS {
+    type Item = PathBuf;
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+    }
+}
 pub fn dfs(
     start: PathBuf,
     search: &str,
@@ -150,13 +172,18 @@ pub fn dfs(
         if !visited_vertices.insert(current_vertex.clone()) {
             continue;
         };
-        let Ok(readdir) = std::fs::read_dir(current_vertex) else {
+        let Ok(readdir) = std::fs::read_dir(current_vertex.clone()) else {
             continue;
         };
         for dir in readdir {
             let Ok(direntry) = dir else {
                 continue;
             };
+            match gitignore.matched(current_vertex.clone(), current_vertex.is_dir()) {
+                Match::None => (),
+                Match::Ignore(_) => continue,
+                Match::Whitelist(_) => continue,
+            }
             if close_enough(direntry.path().as_path(), search) {
                 let owned_path = direntry.path();
                 let disp = owned_path.display();
