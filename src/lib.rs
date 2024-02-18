@@ -197,6 +197,7 @@ impl Iterator for DFS {
         Some(current_vertex)
     }
 }
+#[deprecated(note = "Deprecated in favor of the iterator implementation of DFS.")]
 pub fn dfs(
     start: PathBuf,
     search: &str,
