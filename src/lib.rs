@@ -3,6 +3,7 @@ use ignore::gitignore::Gitignore;
 use ignore::Match;
 use levenshtein::levenshtein;
 use std::collections::{HashMap, HashSet};
+use std::fs::ReadDir;
 use std::io;
 use std::path::{Path, PathBuf};
 pub mod dget;
@@ -135,27 +136,61 @@ pub fn close_enough(path: &Path, to_search: &str) -> bool {
     }
     false
 }
-struct DFS {
+#[derive(Debug)]
+pub struct DFS {
     path: PathBuf,
     stack: Vec<PathBuf>,
+    read_dir: io::Result<ReadDir>,
     search: String,
     gitignore: Gitignore,
+    visited_vertices: HashSet<PathBuf>,
 }
 impl DFS {
-    fn new(args: Args) -> DFS {
-        DFS {
-            path: args.get_starting_dir(),
+    pub fn new(args: Args) -> DFS {
+        let mut new_dfs = DFS {
+            path: Default::default(),
+            read_dir: std::fs::read_dir(args.get_starting_dir()),
             stack: Vec::new(),
             search: args.get_keywords(),
             gitignore: IgnoreFiles::new(args.get_starting_dir().as_path(), args.get_gitignore())
                 .build(),
-        }
+            visited_vertices: HashSet::new(),
+        };
+        new_dfs.stack.push(args.get_starting_dir());
+        new_dfs
     }
 }
 impl Iterator for DFS {
     type Item = PathBuf;
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        match self.stack.pop() {
+            None => None,
+            Some(current_vertex) => {
+                if !self.visited_vertices.insert(current_vertex.clone()) {
+                    return None;
+                };
+                if let Some(readdir) = self.read_dir.as_mut().ok() {
+                    if let Some(res) = readdir.next() {
+                        match res {
+                            Err(_) => return None,
+                            Ok(direntry) => {
+                                // match self.gitignore.matched(self.direntry, self.path.is_dir()) {
+                                //     Match::None => (),
+                                //     Match::Ignore(_) => return None,
+                                //     Match::Whitelist(_) => return None,
+                                // }
+                                self.stack.push(direntry.path());
+                                Some(direntry.path())
+                            }
+                        }
+                    } else {
+                        return None;
+                    }
+                } else {
+                    return None;
+                }
+            }
+        }
     }
 }
 pub fn dfs(
