@@ -2,7 +2,6 @@ use clap::Parser;
 use ignore::gitignore::Gitignore;
 use ignore::Match;
 use levenshtein::levenshtein;
-use std::io;
 use std::{
     collections::{HashSet, VecDeque},
     path::{Path, PathBuf},
@@ -154,23 +153,17 @@ impl DGET {
         new_dget
     }
     fn push_children_to_queue(&mut self, p: &Path) {
-        match std::fs::read_dir(p) {
-            Err(e) => (),
-            Ok(readdir) => {
-                for dir in readdir {
-                    match dir {
-                        Err(e) => (),
-                        Ok(direntry) => {
-                            match self
-                                .gitignore
-                                .matched(direntry.path(), direntry.path().is_dir())
-                            {
-                                Match::None => self.deque.push_back(direntry.path()),
-                                _ => continue,
-                            }
-                        }
-                    }
-                }
+        let Ok(readdir) = std::fs::read_dir(p) else {
+            return;
+        };
+        for dir in readdir {
+            let Ok(direntry) = dir else { continue };
+            match self
+                .gitignore
+                .matched(direntry.path(), direntry.path().is_dir())
+            {
+                Match::None => self.deque.push_back(direntry.path()),
+                _ => continue,
             }
         }
     }
@@ -178,14 +171,12 @@ impl DGET {
 impl Iterator for DGET {
     type Item = PathBuf;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.deque.pop_front() {
-            None => None,
-            Some(current_vertex) => {
-                if self.visited_vertices.insert(current_vertex.clone()) {
-                    self.push_children_to_queue(current_vertex.as_path());
-                }
-                Some(current_vertex)
-            }
+        let Some(current_vertex) = self.deque.pop_front() else {
+            return None;
+        };
+        if self.visited_vertices.insert(current_vertex.clone()) && current_vertex.is_dir() {
+            self.push_children_to_queue(current_vertex.as_path())
         }
+        Some(current_vertex)
     }
 }
