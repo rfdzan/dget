@@ -163,16 +163,20 @@ impl DFS {
 impl Iterator for DFS {
     type Item = PathBuf;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.stack.pop() {
+        match self.stack.last() {
             None => None,
             Some(current_vertex) => {
+                dbg!(&current_vertex);
                 if !self.visited_vertices.insert(current_vertex.clone()) {
-                    return None;
+                    // branch here?
+                    // if has been visited, move to next bit in the dir
+                    // will need to know the contents of the dir in advance
+                    todo!();
                 };
                 if let Some(readdir) = self.read_dir.as_mut().ok() {
                     if let Some(res) = readdir.next() {
                         match res {
-                            Err(_) => return None,
+                            Err(_) => Some(Default::default()),
                             Ok(direntry) => {
                                 // match self.gitignore.matched(self.direntry, self.path.is_dir()) {
                                 //     Match::None => (),
@@ -180,6 +184,7 @@ impl Iterator for DFS {
                                 //     Match::Whitelist(_) => return None,
                                 // }
                                 self.stack.push(direntry.path());
+                                self.read_dir = std::fs::read_dir(direntry.path());
                                 Some(direntry.path())
                             }
                         }
@@ -187,7 +192,8 @@ impl Iterator for DFS {
                         return None;
                     }
                 } else {
-                    return None;
+                    self.stack.pop();
+                    Some(Default::default())
                 }
             }
         }
