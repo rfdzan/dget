@@ -1,6 +1,12 @@
 use clap::Parser;
 use ignore::gitignore::Gitignore;
-use std::path::{Path, PathBuf};
+use ignore::Match;
+use levenshtein::levenshtein;
+use std::io;
+use std::{
+    collections::{HashSet, VecDeque},
+    path::{Path, PathBuf},
+};
 pub mod dget;
 
 #[derive(Parser, Debug)]
@@ -102,9 +108,84 @@ impl<'a> IgnoreFiles<'a> {
         ignore_exist
     }
 }
+/// If the edit distance as ratio is bigger than the threshold, prints the path to the terminal.
+pub fn close_enough(path: &Path, to_search: &str) -> bool {
+    let Some(path_name) = path.file_stem().unwrap_or_default().to_str() else {
+        return false;
+    };
+    let Ok(edit_distance) = i32::try_from(levenshtein(path_name, to_search)) else {
+        return false;
+    };
+    let arr = [path_name.chars().count(), to_search.chars().count()];
+    let Some(max) = arr.iter().max() else {
+        return false;
+    };
+    let Ok(max_as_i32) = i32::try_from(*max) else {
+        return false;
+    };
+    let edit_distance_as_f64 = f64::from(edit_distance);
+    let max_as_f64 = f64::from(max_as_i32);
+    let ratio = (max_as_f64 - edit_distance_as_f64) / max_as_f64;
+    if ratio > 0.5 {
+        return true;
+    }
+    false
+}
 /// Enum variants denoting the existence of a .ignore file.
 #[derive(Debug)]
 pub enum IgnoreExists {
     Yes(PathBuf),
     No(PathBuf),
+}
+pub struct DGET {
+    gitignore: Gitignore,
+    visited_vertices: HashSet<PathBuf>,
+    deque: VecDeque<PathBuf>,
+}
+impl DGET {
+    pub fn new(args: Args) -> DGET {
+        let mut new_dget = DGET {
+            gitignore: IgnoreFiles::new(args.get_starting_dir().as_path(), args.get_gitignore())
+                .build(),
+            visited_vertices: HashSet::new(),
+            deque: VecDeque::new(),
+        };
+        new_dget.deque.push_back(args.get_starting_dir());
+        new_dget
+    }
+    fn push_children_to_queue(&mut self, p: &Path) {
+        match std::fs::read_dir(p) {
+            Err(e) => (),
+            Ok(readdir) => {
+                for dir in readdir {
+                    match dir {
+                        Err(e) => (),
+                        Ok(direntry) => {
+                            match self
+                                .gitignore
+                                .matched(direntry.path(), direntry.path().is_dir())
+                            {
+                                Match::None => self.deque.push_back(direntry.path()),
+                                _ => continue,
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+impl Iterator for DGET {
+    type Item = PathBuf;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.deque.pop_front() {
+            None => None,
+            Some(current_vertex) => {
+                if self.visited_vertices.insert(current_vertex.clone()) {
+                    self.push_children_to_queue(current_vertex.as_path());
+                }
+                Some(current_vertex)
+            }
+        }
+    }
 }
