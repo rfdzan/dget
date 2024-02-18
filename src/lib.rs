@@ -161,7 +161,7 @@ impl DFS {
     }
     fn push_children_to_stack(&mut self, p: &Path) {
         match std::fs::read_dir(p) {
-            Err(_) => self.stack.push(p.to_path_buf()),
+            Err(_) => (),
             Ok(readdir) => {
                 for dir in readdir {
                     match dir {
@@ -182,8 +182,6 @@ impl Iterator for DFS {
         match self.stack.pop() {
             None => None,
             Some(current_vertex) => {
-                // dbg!(&self.stack);
-                // dbg!(&current_vertex);
                 if self.visited_vertices.insert(current_vertex.clone()) {
                     match self
                         .gitignore
