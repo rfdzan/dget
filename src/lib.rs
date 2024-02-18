@@ -160,23 +160,17 @@ impl DFS {
         new_dfs
     }
     fn push_children_to_stack(&mut self, p: &Path) {
-        match std::fs::read_dir(p) {
-            Err(_) => (),
-            Ok(readdir) => {
-                for dir in readdir {
-                    match dir {
-                        Err(_) => (),
-                        Ok(direntry) => {
-                            match self
-                                .gitignore
-                                .matched(direntry.path(), direntry.path().is_dir())
-                            {
-                                Match::None => self.stack.push(direntry.path()),
-                                _ => (),
-                            }
-                        }
-                    }
-                }
+        let Ok(readdir) = std::fs::read_dir(p) else {
+            return;
+        };
+        for dir in readdir {
+            let Ok(direntry) = dir else { continue };
+            match self
+                .gitignore
+                .matched(direntry.path(), direntry.path().is_dir())
+            {
+                Match::None => self.stack.push(direntry.path()),
+                _ => (),
             }
         }
     }
@@ -184,25 +178,23 @@ impl DFS {
 impl Iterator for DFS {
     type Item = PathBuf;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.stack.pop() {
-            None => None,
-            Some(current_vertex) => {
-                if self.visited_vertices.insert(current_vertex.clone()) {
-                    self.push_children_to_stack(current_vertex.as_path());
-                };
-                if let Some(readdir) = self.read_dir.as_mut().ok() {
-                    if let Some(res) = readdir.next() {
-                        match res {
-                            Err(_) => (),
-                            Ok(direntry) => {
-                                self.read_dir = std::fs::read_dir(direntry.path());
-                            }
-                        }
+        let Some(current_vertex) = self.stack.pop() else {
+            return None;
+        };
+        if self.visited_vertices.insert(current_vertex.clone()) {
+            self.push_children_to_stack(current_vertex.as_path());
+        };
+        if let Some(readdir) = self.read_dir.as_mut().ok() {
+            if let Some(res) = readdir.next() {
+                match res {
+                    Err(_) => (),
+                    Ok(direntry) => {
+                        self.read_dir = std::fs::read_dir(direntry.path());
                     }
                 }
-                Some(current_vertex)
             }
         }
+        Some(current_vertex)
     }
 }
 pub fn dfs(
