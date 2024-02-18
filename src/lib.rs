@@ -2,7 +2,7 @@ use clap::Parser;
 use ignore::gitignore::Gitignore;
 use ignore::Match;
 use levenshtein::levenshtein;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::ReadDir;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -159,42 +159,52 @@ impl DFS {
         new_dfs.stack.push(args.get_starting_dir());
         new_dfs
     }
+    fn push_children_to_stack(&mut self, p: &Path) {
+        match std::fs::read_dir(p) {
+            Err(_) => self.stack.push(p.to_path_buf()),
+            Ok(readdir) => {
+                for dir in readdir {
+                    match dir {
+                        Err(_) => (),
+                        Ok(direntry) => {
+                            self.stack.push(direntry.path());
+                            // dbg!(&self.stack);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 impl Iterator for DFS {
     type Item = PathBuf;
     fn next(&mut self) -> Option<Self::Item> {
-        match self.stack.last() {
+        match self.stack.pop() {
             None => None,
             Some(current_vertex) => {
-                dbg!(&current_vertex);
-                if !self.visited_vertices.insert(current_vertex.clone()) {
-                    // branch here?
-                    // if has been visited, move to next bit in the dir
-                    // will need to know the contents of the dir in advance
-                    todo!();
+                // dbg!(&self.stack);
+                // dbg!(&current_vertex);
+                if self.visited_vertices.insert(current_vertex.clone()) {
+                    match self
+                        .gitignore
+                        .matched(current_vertex.clone(), current_vertex.is_dir())
+                    {
+                        Match::None => self.push_children_to_stack(current_vertex.as_path()),
+                        _ => (),
+                    }
                 };
                 if let Some(readdir) = self.read_dir.as_mut().ok() {
                     if let Some(res) = readdir.next() {
                         match res {
-                            Err(_) => Some(Default::default()),
+                            Err(_) => (),
                             Ok(direntry) => {
-                                // match self.gitignore.matched(self.direntry, self.path.is_dir()) {
-                                //     Match::None => (),
-                                //     Match::Ignore(_) => return None,
-                                //     Match::Whitelist(_) => return None,
-                                // }
-                                self.stack.push(direntry.path());
+                                //how to push entire children of each dir into self.stack?
                                 self.read_dir = std::fs::read_dir(direntry.path());
-                                Some(direntry.path())
                             }
                         }
-                    } else {
-                        return None;
                     }
-                } else {
-                    self.stack.pop();
-                    Some(Default::default())
                 }
+                Some(current_vertex)
             }
         }
     }

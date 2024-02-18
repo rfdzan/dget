@@ -23,7 +23,7 @@ fn main_dfs() -> io::Result<()> {
     let mut stdout = BufWriter::new(io::stdout().lock());
     let args = Args::parse();
     for path in DFS::new(args) {
-        // write!(stdout, "{path:?}\n)?;
+        write!(stdout, "{path:?}\n")?;
     }
     Ok(())
 }
