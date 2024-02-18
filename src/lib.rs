@@ -2,7 +2,7 @@ use clap::Parser;
 use ignore::gitignore::Gitignore;
 use ignore::Match;
 use levenshtein::levenshtein;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::HashSet;
 use std::fs::ReadDir;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -138,20 +138,16 @@ pub fn close_enough(path: &Path, to_search: &str) -> bool {
 }
 #[derive(Debug)]
 pub struct DFS {
-    path: PathBuf,
     stack: Vec<PathBuf>,
     read_dir: io::Result<ReadDir>,
-    search: String,
     gitignore: Gitignore,
     visited_vertices: HashSet<PathBuf>,
 }
 impl DFS {
     pub fn new(args: Args) -> DFS {
         let mut new_dfs = DFS {
-            path: Default::default(),
             read_dir: std::fs::read_dir(args.get_starting_dir()),
             stack: Vec::new(),
-            search: args.get_keywords(),
             gitignore: IgnoreFiles::new(args.get_starting_dir().as_path(), args.get_gitignore())
                 .build(),
             visited_vertices: HashSet::new(),
