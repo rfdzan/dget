@@ -167,8 +167,13 @@ impl DFS {
                     match dir {
                         Err(_) => (),
                         Ok(direntry) => {
-                            self.stack.push(direntry.path());
-                            // dbg!(&self.stack);
+                            match self
+                                .gitignore
+                                .matched(direntry.path(), direntry.path().is_dir())
+                            {
+                                Match::None => self.stack.push(direntry.path()),
+                                _ => (),
+                            }
                         }
                     }
                 }
@@ -183,20 +188,13 @@ impl Iterator for DFS {
             None => None,
             Some(current_vertex) => {
                 if self.visited_vertices.insert(current_vertex.clone()) {
-                    match self
-                        .gitignore
-                        .matched(current_vertex.clone(), current_vertex.is_dir())
-                    {
-                        Match::None => self.push_children_to_stack(current_vertex.as_path()),
-                        _ => (),
-                    }
+                    self.push_children_to_stack(current_vertex.as_path());
                 };
                 if let Some(readdir) = self.read_dir.as_mut().ok() {
                     if let Some(res) = readdir.next() {
                         match res {
                             Err(_) => (),
                             Ok(direntry) => {
-                                //how to push entire children of each dir into self.stack?
                                 self.read_dir = std::fs::read_dir(direntry.path());
                             }
                         }
