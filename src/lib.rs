@@ -3,10 +3,12 @@ use ignore::gitignore::Gitignore;
 use ignore::Match;
 use levenshtein::levenshtein;
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, VecDeque},
     path::{Path, PathBuf},
 };
-pub mod dget;
+
+#[cfg(test)]
+pub mod test;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -136,12 +138,16 @@ pub enum IgnoreExists {
     Yes(PathBuf),
     No(PathBuf),
 }
+/// The search algorithm of dget.
+/// - dget uses Breadth-First Search algorithm and treats your folders
+/// as nodes and your files as edges in a graph data structure.
 pub struct DGET {
     gitignore: Gitignore,
     visited_vertices: HashMap<PathBuf, bool>,
     deque: VecDeque<PathBuf>,
 }
 impl DGET {
+    ///Creates a new dget instance that accepts command-line arguments.
     pub fn new(args: Args) -> DGET {
         let mut new_dget = DGET {
             gitignore: IgnoreFiles::new(args.get_starting_dir().as_path(), args.get_gitignore())
