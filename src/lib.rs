@@ -3,7 +3,7 @@ use ignore::gitignore::Gitignore;
 use ignore::Match;
 use levenshtein::levenshtein;
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     path::{Path, PathBuf},
 };
 pub mod dget;
@@ -138,7 +138,7 @@ pub enum IgnoreExists {
 }
 pub struct DGET {
     gitignore: Gitignore,
-    visited_vertices: HashSet<PathBuf>,
+    visited_vertices: HashMap<PathBuf, bool>,
     deque: VecDeque<PathBuf>,
 }
 impl DGET {
@@ -146,25 +146,30 @@ impl DGET {
         let mut new_dget = DGET {
             gitignore: IgnoreFiles::new(args.get_starting_dir().as_path(), args.get_gitignore())
                 .build(),
-            visited_vertices: HashSet::new(),
+            visited_vertices: HashMap::new(),
             deque: VecDeque::new(),
         };
         new_dget.deque.push_back(args.get_starting_dir());
         new_dget
     }
     fn push_children_to_queue(&mut self, p: &Path) {
+        if let Some(true) = self.visited_vertices.get(p) {
+            return;
+        }
+        if p.is_file() {
+            return;
+        }
+        match self.gitignore.matched(p, true) {
+            Match::None => (),
+            _ => return,
+        }
+        self.visited_vertices.insert(p.to_path_buf(), true);
         let Ok(readdir) = std::fs::read_dir(p) else {
             return;
         };
         for dir in readdir {
             let Ok(direntry) = dir else { continue };
-            match self
-                .gitignore
-                .matched(direntry.path(), direntry.path().is_dir())
-            {
-                Match::None => self.deque.push_back(direntry.path()),
-                _ => continue,
-            }
+            self.deque.push_back(direntry.path());
         }
     }
 }
@@ -174,9 +179,7 @@ impl Iterator for DGET {
         let Some(current_vertex) = self.deque.pop_front() else {
             return None;
         };
-        if self.visited_vertices.insert(current_vertex.clone()) && current_vertex.is_dir() {
-            self.push_children_to_queue(current_vertex.as_path())
-        }
+        self.push_children_to_queue(current_vertex.as_path());
         Some(current_vertex)
     }
 }
