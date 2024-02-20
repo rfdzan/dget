@@ -10,12 +10,10 @@ fn dget() -> io::Result<()> {
     let mut stdout = io::BufWriter::new(io::stdout().lock());
     let args = Args::parse();
     let search = args.get_keywords();
-    for path in DGET::new(args) {
-        if close_enough(path.as_path(), search.as_str()) {
-            let disp = path.display();
-            let as_string = disp.to_string();
-            stdout.write(format!("{as_string}\n").as_bytes())?;
-        }
+    for path in DGET::new(args).filter(|path| close_enough(path.as_path(), search.as_str())) {
+        let disp = path.display();
+        let as_string = disp.to_string();
+        stdout.write(format!("{as_string}\n").as_bytes())?;
         stdout.flush()?;
     }
     Ok(())
