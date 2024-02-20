@@ -159,7 +159,7 @@ impl DGET {
         if p.is_file() {
             return;
         }
-        match self.gitignore.matched(p, true) {
+        match self.gitignore.matched(p, p.is_dir()) {
             Match::None => (),
             _ => return,
         }
