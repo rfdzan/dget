@@ -2,7 +2,7 @@ use clap::Parser;
 use ignore::gitignore::Gitignore;
 use ignore::Match;
 use levenshtein::levenshtein;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs::ReadDir;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -141,7 +141,7 @@ pub struct DFS {
     stack: Vec<PathBuf>,
     read_dir: io::Result<ReadDir>,
     gitignore: Gitignore,
-    visited_vertices: HashSet<PathBuf>,
+    visited_vertices: HashMap<PathBuf, bool>,
 }
 impl DFS {
     pub fn new(args: Args) -> DFS {
@@ -150,24 +150,30 @@ impl DFS {
             stack: Vec::new(),
             gitignore: IgnoreFiles::new(args.get_starting_dir().as_path(), args.get_gitignore())
                 .build(),
-            visited_vertices: HashSet::new(),
+            visited_vertices: HashMap::new(),
         };
         new_dfs.stack.push(args.get_starting_dir());
         new_dfs
     }
     fn push_children_to_stack(&mut self, p: &Path) {
+        if let Some(true) = self.visited_vertices.get(p) {
+            return;
+        }
+        if p.is_file() {
+            return;
+        }
+        match self.gitignore.matched(p, p.is_dir()) {
+            Match::None => (),
+            _ => return,
+        }
+        //visited vertices should only contain directories
+        self.visited_vertices.insert(p.to_path_buf(), true);
         let Ok(readdir) = std::fs::read_dir(p) else {
             return;
         };
         for dir in readdir {
             let Ok(direntry) = dir else { continue };
-            match self
-                .gitignore
-                .matched(direntry.path(), direntry.path().is_dir())
-            {
-                Match::None => self.stack.push(direntry.path()),
-                _ => (),
-            }
+            self.stack.push(direntry.path())
         }
     }
 }
@@ -177,9 +183,7 @@ impl Iterator for DFS {
         let Some(current_vertex) = self.stack.pop() else {
             return None;
         };
-        if self.visited_vertices.insert(current_vertex.clone()) {
-            self.push_children_to_stack(current_vertex.as_path());
-        };
+        self.push_children_to_stack(current_vertex.as_path());
         if let Some(readdir) = self.read_dir.as_mut().ok() {
             if let Some(res) = readdir.next() {
                 match res {
@@ -215,6 +219,7 @@ pub fn dfs(
             let Ok(direntry) = dir else {
                 continue;
             };
+            //parameter to matched should be (direntry.path(), direntry.path().is_dir())
             match gitignore.matched(current_vertex.clone(), current_vertex.is_dir()) {
                 Match::None => (),
                 Match::Ignore(_) => continue,
